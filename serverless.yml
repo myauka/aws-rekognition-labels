@@ -1,0 +1,71 @@
+service: aws-rekognition-labels
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  stage: orlov
+  runtime: python3.8
+
+  environment:
+    BUCKET_NAME: ${self:service}-${self:provider.stage}-blobs-bucket
+    TABLE_NAME: ${self:service}-${sls:stage}-blobs-table
+
+functions:
+
+  put_blob:
+#    !!!
+    handler: handlers.put_blob
+    events:
+      - http:
+          path: blobs
+          method: post
+
+  get_blob:
+#    !!!
+    handler: handlers.get_blob
+    events:
+      - http:
+          path: blob/{blob_id}
+          method: get
+
+  process_blob:
+#    !!!
+    handler: handlers.process_blob
+    events:
+      - s3:
+#          !!!
+          bucket:
+          event:
+
+  make_callback:
+    handler: handlers.make_callback
+    events:
+      - dynamodb:
+
+resources:
+  Resources:
+    BlobBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.BUCKET_NAME}
+
+#     !!!
+    BlobTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.TABLE_NAME}
+        AttributeDefinitions:
+          - AttributeName: blob_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: blob_id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+#        BucketName: !Join
+#          - "-"
+#          - - !Ref AWS::AccountId
+#            - "${self:custom.bucket.${self:provider.stage}}"
+#            - !Ref AWS::Region
