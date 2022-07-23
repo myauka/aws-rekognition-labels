@@ -7,6 +7,16 @@ provider:
   stage: orlov
   runtime: python3.8
 
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: *
+
   environment:
     BUCKET_NAME: ${self:service}-${self:provider.stage}-blobs-bucket
     TABLE_NAME: ${self:service}-${sls:stage}-blobs-table
@@ -15,7 +25,18 @@ functions:
 
   put_blob:
 #    !!!
-    handler: handlers.put_blob
+    handler: handlers.put_blob.put_blob
+    iamRoleStatementsInherit: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+        Resource: !GetAtt BlobTable.Arn
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+          - s3:PutObject
+        Resource: !GetAtt BlobBucket.Arn
     events:
       - http:
           path: blobs
@@ -23,25 +44,63 @@ functions:
 
   get_blob:
 #    !!!
-    handler: handlers.get_blob
+    handler: handlers.get_blob_info.get_blob_info
+    iamRoleStatementsInherit: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+        Resource: !GetAtt BlobTable.Arn
     events:
       - http:
           path: blob/{blob_id}
           method: get
 
-  process_blob:
+  search_labels:
 #    !!!
-    handler: handlers.process_blob
+    handler: handlers.search_labels.process_blob
+    iamRoleStatementsInherit: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:UpdateItem
+        Resource: !GetAtt BlobTable.Arn
+
+      - Effect: Allow
+        Action:
+          - rekognition:*
+        Resource: *
+
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+        Resource: !GetAtt BlobBucket.Arn
+
     events:
       - s3:
-#          !!!
-          bucket:
-          event:
+          bucket: ${self.provider.environment.BUCKET_NAME}
+          event: s3:ObjectCreated:*
 
   make_callback:
-    handler: handlers.make_callback
+    handler: handlers.make_callback.make_callback
+    iamRoleStatementsInherit: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:DescribeStream
+          - dynamodb:GetRecords
+          - dynamodb:GetShardIterator
+          - dynamodb:ListStreams
+        Resource: !GetAtt BlobTable.Arn
     events:
-      - dynamodb:
+      - stream:
+          type: dynamodb
+          batchSize: 1
+          startingPosition: LATEST
+          arn:
+            Fn::GetAtt:
+              - BlobTable
+              - StreamArn
 
 resources:
   Resources:
@@ -64,8 +123,13 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
 #        BucketName: !Join
 #          - "-"
 #          - - !Ref AWS::AccountId
 #            - "${self:custom.bucket.${self:provider.stage}}"
 #            - !Ref AWS::Region
+
+plugins:
+  - serverless-iam-roles-per-function

@@ -10,16 +10,16 @@ s3_client = boto3.client("s3")
 dynamodb_client = boto3.client("dynamodb")
 
 
-def main(event, context):
+def put_blob(event, context):
     callback_url = json.loads(event["body"]).get("callback_url")
 
     blob_id = str(uuid.uuid4())
 
     upload_url = s3_client.generate_presigned_url(
-            ClientMethod='put_object',
+            ClientMethod="put_object",
             Params={
-                'Bucket': BUCKET_NAME,
-                'Key': blob_id
+                "Bucket": BUCKET_NAME,
+                "Key": blob_id
             },
             ExpiresIn=300
         )
@@ -29,7 +29,7 @@ def main(event, context):
         Item={
             "blob_id": {"S": blob_id},
             "callback_url": {"S", callback_url},
-            "upload_url": {"S", upload_url}
+            "upload_url": {"S", upload_url},
         }
     )
 
