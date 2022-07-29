@@ -13,14 +13,11 @@ dynamodb_client = boto3.client("dynamodb")
 def put_blob(event, context):
     callback_url = json.loads(event["body"]).get("callback_url")
 
-    blob_id = str(uuid.uuid4())
+    blob_id = f"{uuid.uuid4()}.jpeg"
 
-    upload_url = s3_client.generate_presigned_url(
-            ClientMethod="put_object",
-            Params={
-                "Bucket": BUCKET_NAME,
-                "Key": blob_id
-            },
+    response = s3_client.generate_presigned_post(
+            Bucket=BUCKET_NAME,
+            Key=blob_id,
             ExpiresIn=300
         )
 
@@ -28,8 +25,8 @@ def put_blob(event, context):
         TableName=TABLE_NAME,
         Item={
             "blob_id": {"S": blob_id},
-            "callback_url": {"S", callback_url},
-            "upload_url": {"S", upload_url},
+            "callback_url": {"S": callback_url},
+            "upload_url": {"S": response['url']},
         }
     )
 
@@ -38,6 +35,7 @@ def put_blob(event, context):
         "body": json.dumps({
             "blob_id": blob_id,
             "callback_url": callback_url,
-            "upload_url": upload_url
+            "upload_url": response['url'],
+            "data": response['fields']
         })
     }

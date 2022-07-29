@@ -19,6 +19,8 @@ handlers/test
 .DS_STORE
 .installed.cfg
 *.egg
+bloba.jpeg
+test.py
 
 # Serverless directories
 .serverless

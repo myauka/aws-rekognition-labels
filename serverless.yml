@@ -4,18 +4,23 @@ frameworkVersion: '3'
 
 provider:
   name: aws
-  stage: orlov
+  stage: myauka
   runtime: python3.8
-
   iam:
     role:
       statements:
         - Effect: Allow
           Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-          Resource: *
+            - dynamodb:*
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - rekognition:*
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - s3:*
+          Resource: "*"
 
   environment:
     BUCKET_NAME: ${self:service}-${self:provider.stage}-blobs-bucket
@@ -26,17 +31,6 @@ functions:
   put_blob:
 #    !!!
     handler: handlers.put_blob.put_blob
-    iamRoleStatementsInherit: true
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:PutItem
-        Resource: !GetAtt BlobTable.Arn
-      - Effect: Allow
-        Action:
-          - s3:GetObject
-          - s3:PutObject
-        Resource: !GetAtt BlobBucket.Arn
     events:
       - http:
           path: blobs
@@ -45,12 +39,6 @@ functions:
   get_blob:
 #    !!!
     handler: handlers.get_blob_info.get_blob_info
-    iamRoleStatementsInherit: true
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:GetItem
-        Resource: !GetAtt BlobTable.Arn
     events:
       - http:
           path: blob/{blob_id}
@@ -59,39 +47,14 @@ functions:
   search_labels:
 #    !!!
     handler: handlers.search_labels.process_blob
-    iamRoleStatementsInherit: true
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:UpdateItem
-        Resource: !GetAtt BlobTable.Arn
-
-      - Effect: Allow
-        Action:
-          - rekognition:*
-        Resource: *
-
-      - Effect: Allow
-        Action:
-          - s3:GetObject
-        Resource: !GetAtt BlobBucket.Arn
-
     events:
       - s3:
-          bucket: ${self.provider.environment.BUCKET_NAME}
+          bucket: ${self:provider.environment.BUCKET_NAME}
           event: s3:ObjectCreated:*
+          existing: true
 
   make_callback:
     handler: handlers.make_callback.make_callback
-    iamRoleStatementsInherit: true
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - dynamodb:DescribeStream
-          - dynamodb:GetRecords
-          - dynamodb:GetShardIterator
-          - dynamodb:ListStreams
-        Resource: !GetAtt BlobTable.Arn
     events:
       - stream:
           type: dynamodb
@@ -108,8 +71,22 @@ resources:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:provider.environment.BUCKET_NAME}
-
-#     !!!
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - "*"
+              AllowedMethods:
+                - GET
+                - PUT
+                - HEAD
+              AllowedOrigins:
+                - "*"
+    #     !!!
     BlobTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -131,5 +108,3 @@ resources:
 #            - "${self:custom.bucket.${self:provider.stage}}"
 #            - !Ref AWS::Region
 
-plugins:
-  - serverless-iam-roles-per-function
