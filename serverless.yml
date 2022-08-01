@@ -1,7 +1,7 @@
 service: aws-rekognition-labels
 
 frameworkVersion: '3'
-
+#2.28.1
 provider:
   name: aws
   stage: myauka
@@ -102,9 +102,11 @@ resources:
           WriteCapacityUnits: 1
         StreamSpecification:
           StreamViewType: NEW_IMAGE
-#        BucketName: !Join
-#          - "-"
-#          - - !Ref AWS::AccountId
-#            - "${self:custom.bucket.${self:provider.stage}}"
-#            - !Ref AWS::Region
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+
+plugins:
+  - serverless-python-requirements
 

@@ -21,6 +21,7 @@ handlers/test
 *.egg
 bloba.jpeg
 test.py
+labels2.jpeg
 
 # Serverless directories
 .serverless

@@ -11,13 +11,16 @@ dynamodb_client = boto3.client("dynamodb")
 rekognition_client = boto3.client("rekognition", "us-east-1")
 
 
-def add_labels_to_item(blob_id, labels: list):
-    # list_of_labels = []
-    # for label in labels:
-    #     formatted_label = {"Name": {"S": label["Name"]}, "Confidence": {"N": label["Confidence"]},
-    #                        "Instances": {"L": label["Instances"]}, "Parents": {"L": label["Parents"]}}
-    #     list_of_labels.append("S": formatted_label)
-    converted_to_str_labels = str(labels)[1:-1]
+def add_labels_to_item(blob_id: str, labels: list) -> None:
+    """
+    Adds extracted label to dynamdb item.
+
+    :param blob_id:
+        Id to get access to dynamodb item.
+    :param labels:
+        Labels from blob file, which were obtained using aws rekognition service.
+    :return: None.
+    """
     dynamodb_client.update_item(
         TableName=TABLE_NAME,
         Key={
@@ -30,36 +33,53 @@ def add_labels_to_item(blob_id, labels: list):
             "#labels": "labels"
         },
         ExpressionAttributeValues={
-            ":extracted_labels": {"S": converted_to_str_labels}
+            ":extracted_labels": {"L": labels}
+        })
+
+
+def prepare_labels_for_dynamodb(labels: list) -> list:
+    """
+    Formats extracted labels in order to insert them to dynamodb item.
+
+    :param labels:
+        Labels from blob file, which were obtained using aws rekognition service.
+    :return: List of prepared data for insertion to dynamodb item.
+    """
+    list_of_labels = []
+    for label in labels:
+        formatted_label = {
+            "M": {
+                "label": {"S": label["Name"]},
+                "confidence": {"N": str(label["Confidence"])},
+                "parents": {"L": [{"S": str(i)} for i in label["Parents"]]}
+            }
         }
-        # AttributeUpdates={
-        #     "labels": {
-        #         "Action": "ADD",
-        #         "Value": {"S": converted_to_str_labels}
-        #     }
-        # }
-    )
+        list_of_labels.append(formatted_label)
+    return list_of_labels
 
 
-# def extract_labels_from_blob(blob_id):
-#     rekognition_results = rekognition_client.detect_labels(Image={
-#         "S3Object": {"Bucket": BUCKET_NAME, "Name": blob_id}
-#     })
-#     extracted_labels = json.loads(rekognition_results)["Labels"]
-#     return extracted_labels
+def extract_labels_from_blob(blob_id: str) -> list:
+    """
+    Gets and returns extracted labels from blob file by using aws rekognition service.
 
-
-def process_blob(event, context):
-    blob_id = urllib.parse.unquote_plus(event["Records"][0]["s3"]["object"]["key"], encoding="utf-8")
-
-    print(blob_id)
+    :param blob_id:
+        Id to get blob file from s3 bucket.
+    :return: Extracted from blob list of labels.
+    """
     rekognition_results = rekognition_client.detect_labels(Image={
         "S3Object": {"Bucket": BUCKET_NAME, "Name": blob_id}
     })
-    labels = rekognition_results["Labels"]
-    # labels = extract_labels_from_blob(f'{blob_id}.jpeg')
+    return rekognition_results["Labels"]
 
-    add_labels_to_item(blob_id.split(".")[0], labels)
+
+def process_blob(event, context):
+    blob_id = event['Records'][0]['s3']['object']['key']
+
+    labels = extract_labels_from_blob(blob_id)
+
+    formatted_labels = prepare_labels_for_dynamodb(labels)
+
+    add_labels_to_item(blob_id, formatted_labels)
 
     return {
         "statusCode": 200,
