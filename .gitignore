@@ -15,9 +15,13 @@ var/
 *.egg-info/
 venv/
 .idea/
+handlers/test
 .DS_STORE
 .installed.cfg
 *.egg
+bloba.jpeg
+test.py
+labels2.jpeg
 
 # Serverless directories
 .serverless

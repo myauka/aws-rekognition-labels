@@ -1,11 +1,26 @@
 service: aws-rekognition-labels
 
 frameworkVersion: '3'
-
+#2.28.1
 provider:
   name: aws
-  stage: orlov
+  stage: myauka
   runtime: python3.8
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:*
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - rekognition:*
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - s3:*
+          Resource: "*"
 
   environment:
     BUCKET_NAME: ${self:service}-${self:provider.stage}-blobs-bucket
@@ -15,7 +30,7 @@ functions:
 
   put_blob:
 #    !!!
-    handler: handlers.put_blob
+    handler: handlers.put_blob.put_blob
     events:
       - http:
           path: blobs
@@ -23,25 +38,32 @@ functions:
 
   get_blob:
 #    !!!
-    handler: handlers.get_blob
+    handler: handlers.get_blob_info.get_blob_info
     events:
       - http:
           path: blob/{blob_id}
           method: get
 
-  process_blob:
+  search_labels:
 #    !!!
-    handler: handlers.process_blob
+    handler: handlers.search_labels.process_blob
     events:
       - s3:
-#          !!!
-          bucket:
-          event:
+          bucket: ${self:provider.environment.BUCKET_NAME}
+          event: s3:ObjectCreated:*
+          existing: true
 
   make_callback:
-    handler: handlers.make_callback
+    handler: handlers.make_callback.make_callback
     events:
-      - dynamodb:
+      - stream:
+          type: dynamodb
+          batchSize: 1
+          startingPosition: LATEST
+          arn:
+            Fn::GetAtt:
+              - BlobTable
+              - StreamArn
 
 resources:
   Resources:
@@ -49,8 +71,22 @@ resources:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:provider.environment.BUCKET_NAME}
-
-#     !!!
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - "*"
+              AllowedMethods:
+                - GET
+                - PUT
+                - HEAD
+              AllowedOrigins:
+                - "*"
+    #     !!!
     BlobTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -64,8 +100,13 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
-#        BucketName: !Join
-#          - "-"
-#          - - !Ref AWS::AccountId
-#            - "${self:custom.bucket.${self:provider.stage}}"
-#            - !Ref AWS::Region
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+
+plugins:
+  - serverless-python-requirements
+
