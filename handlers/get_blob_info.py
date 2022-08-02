@@ -36,14 +36,20 @@ def get_blob_info(event, context):
 
     if not item:
         return {
-            "statusCode": 400,
+            "statusCode": 404,
             "body": json.dumps({"error": "record about received blob id is not found"})
         }
 
-    response = {
-        "blob_id": item["blob_id"]["S"],
-        "labels": item["labels"]["L"]
-    }
+    try:
+        response = {
+            "blob_id": item["blob_id"]["S"],
+            "labels": item["labels"]["L"]
+        }
+    except:
+        return {
+            "statusCode": 404,
+            "body": json.dumps({"error": "image was not loaded yet"})
+        }
 
     return {
         "statusCode": 200,
