@@ -20,7 +20,6 @@ handlers/test
 .installed.cfg
 *.egg
 bloba.jpeg
-test.py
 labels2.jpeg
 
 # Serverless directories
