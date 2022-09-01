@@ -19,7 +19,7 @@ API for recognition labels on blob files.
 
 API has 2 endpoints:  
 POST /blobs - accepts callback_url for receiving callback when recognition will be ended, and return upload_url for uploading pictures.  
-GET /blobs/{blob_id} - returns information about recognition results for specified blob.
+GET /blob/{blob_id} - returns information about recognition results for specified blob.
 
 ### Before deployment
 
